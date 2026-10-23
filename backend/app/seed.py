@@ -33,7 +33,7 @@ def seed() -> dict:
     # Overdue task — the replan demo candidate
     created.append(create_task(
         "File expense report", "medium", _at(0, max(settings.work_start, datetime.now().hour - 2), 0),
-        20, "Overdue — perfect for the replan demo",
+        20, "Overdue — exercises the replan flow",
     ))
 
     # Today
@@ -46,7 +46,7 @@ def seed() -> dict:
     created.append(create_task("Prep team sync agenda", "low", _at(1, 15), 30))
 
     # Later this week
-    created.append(create_task("Prepare hackathon demo script", "high", _at(3, 16), 45))
+    created.append(create_task("Prepare demo script", "high", _at(3, 16), 45))
     created.append(create_task("Book dentist appointment", "low", _at(4, 17), 10))
 
     # Next week

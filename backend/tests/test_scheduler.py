@@ -7,6 +7,15 @@ from app.db import get_conn
 from app.services.scheduler import generate_schedule, replan
 from app.services.tasks import create_task
 
+# Fixed point inside the work window (Friday 10:00) so tests pass at any time of day.
+FROZEN_NOW = datetime(2026, 10, 23, 10, 0, 0)
+
+
+@pytest.fixture
+def frozen_now(monkeypatch):
+    monkeypatch.setattr("app.services.scheduler._now", lambda: FROZEN_NOW)
+    return FROZEN_NOW
+
 
 def _blocks_for(conn, task_id):
     return [
@@ -17,8 +26,8 @@ def _blocks_for(conn, task_id):
     ]
 
 
-def test_schedules_before_deadline_in_work_window(clean_db):
-    now = datetime.now()
+def test_schedules_before_deadline_in_work_window(clean_db, frozen_now):
+    now = frozen_now
     t1 = create_task("Urgent report", "high", now + timedelta(hours=6), 60)
     t2 = create_task("Chores", "low", now + timedelta(days=2), 30)
     with get_conn() as conn:
@@ -54,12 +63,12 @@ def test_earlier_deadline_gets_earlier_slot(clean_db):
     ), "earlier deadline must be scheduled first regardless of priority"
 
 
-def test_no_free_slot_reports_unscheduled(clean_db, monkeypatch):
+def test_no_free_slot_reports_unscheduled(clean_db, monkeypatch, frozen_now):
     """A task longer than the horizon capacity is only partially scheduled and reported."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "schedule_horizon_days", 1)
-    now = datetime.now()
+    now = frozen_now
     t = create_task("Impossible task", "high", now + timedelta(days=1), 10 * 60)
     with get_conn() as conn:
         result = generate_schedule(conn)
@@ -124,22 +133,23 @@ def test_generate_schedule_replaces_future_blocks(clean_db):
     assert n == 1, "regenerating must replace, not duplicate, future blocks"
 
 
-def test_completed_task_releases_its_time(clean_db):
+def test_completed_task_releases_its_time(clean_db, frozen_now):
     """A done task's future block must not block new scheduling."""
     from app.services.tasks import complete_task
 
-    t1 = create_task("Done early", "high", datetime.now() + timedelta(hours=5), 60)
+    now = frozen_now
+    t1 = create_task("Done early", "high", now + timedelta(hours=5), 60)
     with get_conn() as conn:
         generate_schedule(conn)
     complete_task(t1["id"])
-    t2 = create_task("New work", "high", datetime.now() + timedelta(hours=6), 60)
+    t2 = create_task("New work", "high", now + timedelta(hours=6), 60)
     with get_conn() as conn:
         generate_schedule(conn)
     with get_conn() as conn:
         b2 = _blocks_for(conn, t2["id"])
     assert b2, "new task should be scheduled"
     start = datetime.fromisoformat(b2[0]["start_time"])
-    assert (start - datetime.now()).total_seconds() / 60 < 120, (
+    assert (start - now).total_seconds() / 60 < 120, (
         "new task should reuse the time freed by the completed task"
     )
 

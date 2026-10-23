@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "FocusFlow — AI productivity agent",
   description:
-    "Conversational task capture, deterministic scheduling, and automatic replanning. Hackathon build for Amazon Developer events.",
+    "Conversational task capture, deterministic scheduling, and automatic replanning.",
 };
 
 export default function RootLayout({

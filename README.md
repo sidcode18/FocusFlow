@@ -1,19 +1,16 @@
 # FocusFlow
 
-**An AI productivity agent for the Amazon Developer hackathon.**
-Talk to it in plain language; it creates tasks with deadlines, generates a deterministic
-schedule around your workday, and automatically replans when you miss a deadline.
+An AI productivity agent you talk to in plain language. It turns requests into tasks
+with deadlines, builds a deterministic schedule around your workday, and replans
+automatically when a deadline is missed.
 
-- **Tracks**: Alexa+ (primary) · AWS Builder · Open Source mini challenges
-- **Stack**: Next.js 15 + TypeScript + Tailwind CSS 4 · Python FastAPI · official Python MCP SDK ·
-  Amazon Bedrock (Claude) · SQLite
+- **Stack**: Next.js 15 + TypeScript + Tailwind CSS 4 · Python FastAPI · official Python MCP SDK · Amazon Bedrock (Claude) · SQLite
 - **License**: MIT
 
-> Honesty note: FocusFlow runs against **real** Amazon Bedrock when AWS credentials are present.
-> Without credentials it falls back to a deterministic rule-based mock agent; every assistant
-> reply carries a small **Mock** / **Bedrock** tag so output is never misrepresented as AI.
-> The voice panel uses the browser's real speech APIs where available (Chrome/Edge) and falls
-> back to typing elsewhere.
+> Replies come from Amazon Bedrock when AWS credentials are configured. Without them, a
+> deterministic rule-based mock agent answers, and every reply is tagged **Mock** or
+> **Bedrock** so output is never passed off as AI. Voice input uses the browser's speech
+> APIs (Chrome/Edge) with a typing fallback elsewhere.
 
 ---
 
@@ -57,7 +54,7 @@ schedule around your workday, and automatically replans when you miss a deadline
 | Service | Usage |
 | --- | --- |
 | **Amazon Bedrock** | Claude (default `anthropic.claude-sonnet-4-20250514-v1:0`, configurable) via the `converse` API with tool configuration — natural-language understanding, tool selection, and the final user-facing explanation. |
-| **SQLite (local)** | Persistence. Chosen deliberately over DynamoDB/RDS for a zero-infra hackathon MVP. |
+| **SQLite (local)** | Persistence. Chosen deliberately over DynamoDB/RDS for a zero-infra local app. |
 
 No other AWS services are required. Nothing is deployed; everything runs locally.
 
@@ -84,7 +81,7 @@ Protocol: **MCP spec 2025-11-25** negotiated at handshake (SDK also supports the
 - Open tasks sorted by: earliest deadline → priority (high > medium > low) → age.
 - Each task gets contiguous block(s) in remaining free time; long tasks chunk across days.
 - Tasks that can't finish before their deadline are still scheduled, with an explicit
-  “does not finish before its deadline” explanation.
+  "does not finish before its deadline" explanation.
 - Completed tasks release their reserved time; regenerating replaces future blocks
   (no duplicates).
 - Replan: todo tasks past their deadline are reopened with a new deadline
@@ -98,12 +95,12 @@ Protocol: **MCP spec 2025-11-25** negotiated at handshake (SDK also supports the
 Prerequisites: **Python 3.11+** and **Node.js 18+**. No Docker, no GPU, no other services.
 
 ```bash
-# 1. Backend (API on :8000, MCP on :8001)
+# 1. Backend dependencies
 cd backend
 python3 -m venv ../.venv && source ../.venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Configuration (optional — without AWS keys the app runs in labeled mock mode)
+# 2. Configuration (optional — without AWS keys the app runs the labeled mock agent)
 cp ../.env.example backend/.env    # then edit backend/.env
 
 # 3. Frontend
@@ -116,14 +113,14 @@ cd backend && uvicorn mcp_server.server:app --port 8001 # T2: MCP server
 cd frontend && npm run dev                              # T3: web UI (localhost:3000)
 ```
 
-Open **http://localhost:3000**. Demo data seeds automatically on first run
-(11 tasks: completed history, an overdue task for the replan demo, and upcoming work).
+Or run everything with `./run-dev.sh` from the repo root.
 
-> Port 3000 busy? `npx next dev -p 3001` — port 3001 is already in the default CORS list.
-> Opening the UI from another device via a LAN IP (e.g. `http://10.10.34.154:3001`) is
-> also supported: CORS allows localhost and private `10.x` / `192.168.x` / `172.16–31.x`
-> origins by default. Override with `FOCUSFLOW_CORS_ORIGIN_REGEX` if needed. The Next.js
-> dev-server cross-origin warning in that case is informational only.
+Open **http://localhost:3000**. Demo data seeds automatically on first run
+(11 tasks: completed history, an overdue task to exercise replan, and upcoming work).
+
+> Port 3000 busy? `npx next dev -p 3001` — port 3001 is already in the default CORS
+> list. Opening the UI via a LAN IP (e.g. `http://10.10.34.154:3001`) also works;
+> override with `FOCUSFLOW_CORS_ORIGIN_REGEX` if needed.
 
 ### Credentials
 
@@ -136,7 +133,7 @@ Open **http://localhost:3000**. Demo data seeds automatically on first run
 
 IAM permission needed: `bedrock:InvokeModel` (and `bedrock:InvokeModelWithResponseStream`)
 on the chosen model. If Bedrock fails at runtime, the chat endpoint returns an explicit
-error message — it never silently downgrades to mock.
+error — it never silently downgrades to mock.
 
 ### Run the tests
 
@@ -145,40 +142,39 @@ source .venv/bin/activate
 cd backend && python -m pytest
 ```
 
-**Actual results (2026-10-22, this machine): 45 passed.**
-Coverage includes: scheduler rules (ordering, chunking, overload, replan, overlap,
-done-releases-time), task service CRUD + verification, persistence across connections,
-all REST endpoints (validation 422s, 404s, CORS), mock-agent intents, and a full
-**MCP integration suite** that boots the real server as a subprocess and drives it with
-the official Python client over Streamable HTTP (protocol version, tool list, full
-create→complete→reschedule→replan→delete lifecycle verified in-database, error paths).
+**Latest run: 45 passed.** Coverage includes: scheduler rules (ordering, chunking,
+overload, replan, overlap, done-releases-time), task service CRUD + verification,
+persistence across connections, all REST endpoints (validation 422s, 404s, CORS),
+mock-agent intents, and a full **MCP integration suite** that boots the real server as
+a subprocess and drives it with the official Python client over Streamable HTTP
+(protocol version, tool list, full create→complete→reschedule→replan→delete lifecycle
+verified in-database, error paths).
 
 ---
 
-## Demo script (< 3 minutes)
+## Demo walkthrough
 
-1. **(0:00)** Open http://localhost:3000. Point out the dashboard: stats strip, today's
-   tasks, and the weekly calendar generated from deadlines.
-2. **(0:30)** In the Assistant panel, send:
+1. Open http://localhost:3000 — stats strip, today's tasks, weekly calendar generated
+   from deadlines.
+2. In the Assistant panel, send:
    `Add prepare keynote slides by Friday 3pm and email sponsors tomorrow 9am and review analytics dashboard today 6pm`
-   → three tasks appear in the lists, the calendar re-flows, and each tool call is
-   logged under the reply (create × 3, generate_schedule).
-3. **(1:00)** Click **Mark complete** on “Finish investor deck slides” — stats and
-   completion rate update; its calendar time is released.
-4. **(1:20)** Click **Replan missed (1)** (the overdue expense report), confirm, and read
-   the explanation banner: deadline moved to the next workday, stale block cleared,
-   new slot found.
-5. **(1:50)** Real MCP proof: run
+   → three tasks appear, the calendar re-flows, and each tool call is logged under the
+   reply (create × 3, generate_schedule).
+3. Click **Mark complete** on "Finish investor deck slides" — stats update and its
+   calendar time is released.
+4. Click **Replan missed** (the overdue expense report), confirm, and read the
+   explanation: deadline moved to the next workday, stale block cleared, new slot found.
+5. Verify MCP independently:
    ```bash
-   curl -s http://localhost:8001/health | jq
+   curl -s http://localhost:8001/health
    cd backend && python -m pytest tests/test_mcp_integration.py -q
    ```
-   — the integration test drives `create_task`/`complete_task` over **Streamable HTTP**
+   The integration test drives `create_task`/`complete_task` over **Streamable HTTP**
    with the official MCP client (spec 2025-11-25) and verifies the writes in SQLite;
-   the new task is visible in the UI.
-6. **(2:30)** Switch the Assistant to the **Voice** tab and say `How am I doing?` into the
-   mic (Chrome/Edge) — the reply is spoken back with live stats. Close on the reply tags:
-   every answer is labeled **Bedrock** or **Mock**.
+   the new task appears in the UI.
+6. Switch the Assistant to the **Voice** tab and say `How am I doing?` into the mic
+   (Chrome/Edge) — the reply is spoken back with live stats. Every answer is tagged
+   **Bedrock** or **Mock**.
 
 ---
 
@@ -203,9 +199,9 @@ frontend/
   src/lib/api.ts         typed API client
 ```
 
-## Tested vs. not (honest status)
+## Tested vs. not
 
-**Genuinely tested (automated + manual):**
+**Tested (automated + manual):**
 - All REST endpoints, validation and error paths (404/422), CORS.
 - Deterministic scheduler: ordering, chunking, overload reporting, replanning,
   overlap-freedom, completed-task time release.
@@ -214,33 +210,28 @@ frontend/
   against the real server process over Streamable HTTP.
 - Mock agent intents: multi-task creation, complete/delete/reschedule by title,
   replan, progress, unknown-task honesty.
-- Full UI data rendering verified in a browser (dashboard, lists, calendar, reply tags,
-  chat suggestions, seeded state). Chat input state handling verified.
+- UI rendering verified in a browser (dashboard, lists, calendar, reply tags, voice
+  controls, seeded state). One manual click-through is still recommended.
 
 **Known limitations:**
-- Single-user, no authentication (fine for a local demo; would need auth + multi-tenancy
-  for real deployment).
-- Mock agent NLU is rule-based — simple phrasings only; Bedrock mode handles free-form
-  language.
-- No timezone support (local naive time); no recurring tasks; no calendar-file export.
-- Voice input uses the browser SpeechRecognition API (Chrome/Edge); other browsers fall
-  back to typing. Replies are spoken via speechSynthesis with a mute toggle.
-- Alexa+ is *represented* through the in-app voice experience using the same
-  backend; **no official Alexa+ deployment or certification is claimed.**
-- Automated browser click-through of UI buttons was limited by the sandboxed browser
-  environment (hidden viewport); buttons use the same verified API paths — do one manual
-  click-through before demoing.
-- Bedrock tool-use was exercised structurally (schemas, loop, verification); live Bedrock
-  calls require credentials and were not executable in this environment.
+- Single-user, no authentication; not hardened for public deployment.
+- Mock agent NLU is rule-based — simple phrasings only; Bedrock mode handles
+  free-form language.
+- No timezone support (local naive time); no recurring tasks; no calendar export.
+- Voice input depends on browser support (Chrome/Edge); spoken replies use
+  `speechSynthesis`.
+- Bedrock tool-use was exercised structurally (schemas, loop, verification); live
+  Bedrock calls require credentials and were not run in the development environment.
 
-## Product feedback for the hackathon (AWS Builder mini challenge)
+## Notes from building with Bedrock and MCP
 
-- Bedrock's `converse` tool-use API made the agent loop straightforward — no custom
-  prompt parsing — but per-region model availability is the biggest friction: the model
-  id must match what the judge's account has enabled, hence the env override and the
-  labeled mock fallback.
-- The MCP spec's Streamable HTTP transport worked first-try with the official Python SDK;
-  having the agent and MCP share one tool registry prevented drift between what the AI
-  can do and what integrators can do.
+- Bedrock's `converse` tool-use API makes the agent loop straightforward — no custom
+  prompt parsing — but per-region model availability is the main friction: the model id
+  must match what the account has enabled, hence the env override and labeled mock
+  fallback.
+- The MCP spec's Streamable HTTP transport worked first-try with the official Python
+  SDK; having the agent and MCP share one tool registry prevents drift between what
+  the AI can do and what integrators can do.
 - A "verified execution" pattern (re-read state after every write) caught real bugs
-  during development and makes agent claims auditable — recommended for any agent MVP.
+  during development and makes agent claims auditable — recommended for any agent
+  built on this stack.
